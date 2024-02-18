@@ -8,6 +8,7 @@
       - "18.17.0"
     
     project_folder : /var/www/test.com
+    local_folder : "/root/Music/"  #dont try to place in the same ansible directory and dont use * to copy files just use /
     git_repo : "https://github.com/pdalvi1893/kubernetes.git"
     git_version : main
   tasks:
@@ -66,3 +67,22 @@
         dest: "{{ project_folder }}"
         version: "{{ git_version }}"
         update: yes
+
+    - name: Copy files to remote location
+      become_user: root
+      copy:
+        src: "{{ local_folder }}"
+        dest: "{{ project_folder }}"
+
+    - name: Install pm2 for the project
+      become_user: root
+      shell: cd {{ project_folder }} && npm install pm2 -g 
+
+    - name: Change to project directory and run build command
+      become_user: root
+      shell: cd {{ project_folder }} && npm install && npm run build 
+
+    - name: Run project using PM2
+      become_user: root
+      shell: cd {{ project_folder }} && pm2 start ecosystem.config.js
+
