@@ -1,0 +1,51 @@
+---
+- name: Install Node.js using NVM on AlmaLinux
+  hosts: 192.168.1.104
+  become: yes
+  vars:
+    node_versions:
+      - "14.17.0"
+      - "18.17.0"
+  tasks:
+    - name: Install required system packages
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - curl
+        - wget
+        - git
+        - gcc
+        - gcc-c++
+        - make
+        - openssl-devel
+        - bzip2
+        - libffi-devel
+        - readline-devel
+        - sqlite-devel
+
+    - name: Install NVM (Node Version Manager)
+      become_user: root
+      shell: |
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
+
+    - name: Load NVM environment variables
+      become_user: root
+      environment:
+        NVM_DIR: "/home/pankaj/.nvm"
+      shell: source /home/pankaj/.nvm/nvm.sh && source /home/pankaj/.bashrc
+
+    - name: Install Node.js versions using NVM
+      become_user: root
+      shell: |
+        source /home/pankaj/.nvm/nvm.sh
+        for version in {{ node_versions }}; do
+          nvm install $version
+        done
+
+    - name: Add NVM initialization to shell profile
+      become_user: root
+      lineinfile:
+        dest: /home/pankaj/.bashrc
+        line: '[[ -s "/home/pankaj/.nvm/nvm.sh" ]] && \. "/home/pankaj/.nvm/nvm.sh"  # This loads nvm'
+        state: present

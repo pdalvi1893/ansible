@@ -1,0 +1,68 @@
+---
+- name: Install Node.js using NVM on AlmaLinux
+  hosts: 192.168.1.104
+  become: yes
+  vars:
+    node_versions:
+      - "14.17.0"
+      - "18.17.0"
+    
+    project_folder : /var/www/test.com
+    git_repo : "https://github.com/pdalvi1893/kubernetes.git"
+    git_version : main
+  tasks:
+    - name: Install required system packages
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - curl
+        - wget
+        - git
+        - gcc
+        - gcc-c++
+        - make
+        - openssl-devel
+        - bzip2
+        - libffi-devel
+        - readline-devel
+        - sqlite-devel
+        - nginx
+
+    - name: Install NVM (Node Version Manager)
+      become_user: root
+      shell: |
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
+
+    - name: Load NVM environment variables
+      become_user: root
+      environment:
+        NVM_DIR: "/root/.nvm"
+      shell: source /root/.nvm/nvm.sh && source /root/.bashrc
+
+    - name: Install Node.js versions using NVM
+      become_user: root
+      shell: |
+        source ~/.bash_profile;
+        nvm install 14.17.0
+
+    - name: Add NVM initialization to shell profile
+      become_user: root
+      lineinfile:
+        dest: /root/.bashrc
+        line: '[[ -s "/root/.nvm/nvm.sh" ]] && \. "/root/.nvm/nvm.sh"  # This loads nvm'
+        state: present
+
+    - name: Create project folder if it doesn't exist
+      become_user: root
+      file:
+        path: "{{ project_folder }}"
+        state: directory
+        mode: 0755
+
+    - name: Clone git repository if not already cloned
+      git:
+        repo: "{{ git_repo }}"
+        dest: "{{ project_folder }}"
+        version: "{{ git_version }}"
+        update: yes
