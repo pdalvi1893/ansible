@@ -1,0 +1,138 @@
+---
+- name: Install Node.js using NVM on AlmaLinux
+  hosts: 192.168.1.104
+  become: yes
+  become_method: sudo
+  # become: yes
+  # become_user: pankaj
+  vars:
+  #   ansible_become_pass: "Password#123"
+    node_versions:
+      - "14.17.0"
+      - "18.17.0"
+    
+    project_folder : /var/www/testpankajrepo.com
+    local_folder : "/home/pankaj/Music/"  #dont try to place in the same ansible directory and dont use * to copy files just use /
+    git_repo : "https://github.com/pdalvi1893/kubernetes.git"
+    git_version : main
+  tasks:
+    - name: Install required system packages
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - curl
+        - wget
+        - git
+        - gcc
+        - gcc-c++
+        - make
+        - openssl-devel
+        - bzip2
+        - libffi-devel
+        - readline-devel
+        - sqlite-devel
+        - nginx
+
+    - name: Install NVM (Node Version Manager)
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      shell: |
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
+
+    - name: Load NVM environment variables
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      environment:
+        NVM_DIR: "/root/.nvm"
+      shell: source /root/.nvm/nvm.sh && source /root/.bashrc
+
+    - name: Install Node.js versions using NVM
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      shell: |
+        source ~/.bash_profile;
+        nvm install 14.17.0
+
+    - name: Add NVM initialization to shell profile
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      lineinfile:
+        dest: /root/.bashrc
+        line: '[[ -s "/root/.nvm/nvm.sh" ]] && \. "/root/.nvm/nvm.sh"  # This loads nvm'
+        state: present
+
+    - name: Create project folder if it doesn't exist
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      file:
+        path: "{{ project_folder }}"
+        state: directory
+        mode: 0755
+
+    - name: Clone git repository if not already cloned
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      git:
+        repo: "{{ git_repo }}"
+        dest: "{{ project_folder }}"
+        version: "{{ git_version }}"
+        update: yes
+
+    - name: Copy files to remote location
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      copy:
+        src: "{{ local_folder }}"
+        dest: "{{ project_folder }}"
+
+    - name: Install pm2 for the project
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      shell: cd {{ project_folder }} && npm install pm2 -g 
+
+    - name: Change to project directory and run build command
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      shell: cd {{ project_folder }} && npm install && npm run build 
+
+    - name: Run project using PM2
+      become_user: root
+      become: yes
+      become_method: sudo
+      vars:
+        ansible_become_pass: "Password#123"
+      shell: cd {{ project_folder }} && pm2 start ecosystem.config.js
+
