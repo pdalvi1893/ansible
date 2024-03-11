@@ -141,3 +141,20 @@
 
     - name: Start the kubelet service
       command: sudo systemctl start kubelet
+
+    - name: Initialize Kubernetes Cluster
+      command: "sudo kubeadm init --cri-socket /run/cri-dockerd.sock --ignore-preflight-errors=Mem"
+      register: kubeadm_output
+
+    - name: Save kubeadm output to a text file
+      copy:
+        content: "{{ kubeadm_output.stdout }}"
+        dest: /root/kubernetes_join_1
+
+    - name: Set kubectl command for home user
+      shell: |
+        mkdir -p $HOME/.kube &&
+        cp -i /etc/kubernetes/admin.conf $HOME/.kube/config &&
+        chown $(id -u):$(id -g) $HOME/.kube/config
+      environment:
+        HOME: "{{ ansible_env.HOME }}"
