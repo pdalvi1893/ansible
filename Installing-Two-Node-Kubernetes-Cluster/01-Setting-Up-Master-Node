@@ -158,3 +158,9 @@
         chown $(id -u):$(id -g) $HOME/.kube/config
       environment:
         HOME: "{{ ansible_env.HOME }}"
+
+    - name: Install Calico manifest
+      command: "curl https://raw.githubusercontent.com/projectcalico/calico/v3.27.2/manifests/calico.yaml -O"
+
+    - name: Apply the calico manifest
+      command: "kubectl apply -f calico.yaml"
