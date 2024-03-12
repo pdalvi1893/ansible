@@ -1,0 +1,143 @@
+---
+- name: Set SELinux to permissive mode
+  hosts: 192.168.1.107
+  become: yes
+
+  vars:
+    ansible_host_master: 192.168.1.106
+    ansible_host_worker: 192.168.1.107
+
+  tasks:
+    - name: Install required system packages
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - wget
+        - tar
+
+    - name: Disable SELinux
+      command: setenforce 0
+
+    - name: Stop firewalld service
+      command: systemctl stop firewalld
+
+    - name: Disable firewalld service
+      command: systemctl disable firewalld
+
+    - name: Change hostname
+      command: hostnamectl set-hostname worker-01
+
+    - name: Add entry to hosts file for master
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ ansible_host_master }}  master"
+        state: present
+
+    - name: Add entry to hosts file for worker
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ ansible_host_worker }}  worker-01"
+        state: present
+
+    - name: Disable swap
+      ansible.builtin.command:
+        cmd: sudo swapoff -a
+
+    - name: Comment out swap entries in /etc/fstab
+      ansible.builtin.command:
+        cmd: sudo sed -i '/ swap / s/^/#/' /etc/fstab
+
+    - name: Update YUM repositories
+      ansible.builtin.yum:
+        name: '*'
+        state: latest
+        update_cache: yes
+
+    - name: Install yum-utils package
+      ansible.builtin.yum:
+        name: yum-utils
+        state: latest
+
+    - name: Add official Docker repository
+      command: sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+    - name: Install Docker Repository
+      command: sudo yum install -y docker-ce docker-ce-cli containerd.io --allowerasing
+
+    - name: Enable Docker Service
+      command: sudo systemctl enable docker
+
+    - name: Start Docker Service
+      command: sudo systemctl start docker
+
+    - name: Copy daemon.json configuration
+      ansible.builtin.copy:
+        content: |
+          {
+            "exec-opts": ["native.cgroupdriver=systemd"],
+            "log-driver": "json-file",
+            "log-opts": {
+              "max-size": "100m"
+            },
+            "storage-driver": "overlay2"
+          }
+        dest: /etc/docker/daemon.json
+
+    - name: Reload systemd daemon
+      command: sudo systemctl daemon-reload
+
+    - name: Restart Docker
+      command: sudo systemctl restart docker
+
+
+    - name: Download cri-dockerd
+      command: wget https://github.com//Mirantis/cri-dockerd/releases/download/v0.3.11/cri-dockerd-0.3.11.amd64.tgz
+
+    - name: Untar cri-dockerd
+      command: tar xvf cri-dockerd-0.3.11.amd64.tgz
+
+    - name: Move cri-dockerd binary to /usr/local/bin
+      command: sudo mv cri-dockerd/cri-dockerd /usr/local/bin/
+
+    - name: Echo cri-dockerd version
+      command: "cri-dockerd --version"
+
+    - name: Download cri-dockerd service
+      command: wget https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.service https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.socket
+
+    - name: Move cri-dockerd service to /etc/systemd/system/
+      command: sudo mv cri-docker.socket cri-docker.service /etc/systemd/system/
+
+    - name: Connect the service with the main cri-dockerd binary
+      ansible.builtin.command:
+        cmd: sudo sed -i -e 's,/usr/bin/cri-dockerd,/usr/local/bin/cri-dockerd,' /etc/systemd/system/cri-docker.service
+
+    - name: Reload the daemon configuration
+      command: sudo systemctl daemon-reload
+
+    - name: Enable the service using the systemctl
+      command: sudo systemctl enable cri-docker.service
+
+    - name: Enable cri-socket
+      command: sudo systemctl enable --now cri-docker.socket
+
+    - name: Confirm crio service is running
+      command: systemctl status cri-docker.socket
+
+    - name: Copy Kubernetes repository file
+      ansible.builtin.copy:
+        src: /root/project-ansible/kubernetes.repo
+        dest: /etc/yum.repos.d/kubernetes.repo
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name:  Install the Kubernetes tools
+      command: sudo yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+
+    - name: Enable the kubelet service
+      command: sudo systemctl enable kubelet
+
+    - name: Start the kubelet service
+      command: sudo systemctl start kubelet
